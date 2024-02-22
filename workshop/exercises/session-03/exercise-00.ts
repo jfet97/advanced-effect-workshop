@@ -35,12 +35,28 @@ import { gql, GraphQLClient } from "graphql-request"
 const makePokemonRepo = Effect.gen(function*(_) {
   const pokemonApi = yield* _(PokemonApi)
 
-  const GetPokemonByIdResolver: RequestResolver.RequestResolver<GetPokemonById> =
-    RequestResolver.makeBatched((requests: ReadonlyArray<GetPokemonById>) => {
-      // =============================================================================
-      // Please provide your implementation here!
-      // =============================================================================
-    })
+  const GetPokemonByIdResolver: RequestResolver.RequestResolver<GetPokemonById> = RequestResolver
+    .makeBatched((requests: ReadonlyArray<GetPokemonById>) =>
+      Effect.gen(function*($) {
+        const pokemons = pokemonApi.getByIds(ReadonlyArray.map(requests, (r) => r.id))
+
+        return yield* $(
+          pokemons,
+          Effect.flatMap(
+            (pks) => {
+              // ensure that the order of the returned pokemons matches the order of the requests
+              const map = new Map<number, Pokemon>(pks.map((pk) => [pk.id, pk]))
+              return Effect.forEach(requests, (request) =>
+                Request.completeEffect(request, Effect.succeed(map.get(request.id)!))) // or die
+            }
+          ),
+          Effect.catchAll((error) =>
+            Effect.forEach(requests, (request) =>
+              Request.completeEffect(request, Effect.fail(error)))
+          )
+        )
+      })
+    )
 
   const getById = (id: number) => Effect.request(new GetPokemonById({ id }), GetPokemonByIdResolver)
 
@@ -140,7 +156,9 @@ const program = Effect.gen(function*(_) {
 
   const pokemon = yield* _(
     // Toggle batching on and off to see time difference
-    Effect.forEach(ReadonlyArray.range(1, 100), repo.getById),
+    // Effect.forEach(ReadonlyArray.range(1, 100), repo.getById, { batching: true }),
+    Effect.forEach(ReadonlyArray.range(1, 100), repo.getById, { batching: "inherit" }),
+    Effect.withRequestBatching(true),
     Effect.timed,
     Effect.map(([duration, pokemon]) => ({ duration: duration.toString(), pokemon }))
   )

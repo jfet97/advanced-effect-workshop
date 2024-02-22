@@ -44,7 +44,8 @@ const makeBatchedLogger = (config: {
       }).pipe(
         Effect.schedule(Schedule.fixed(config.window)),
         Effect.fork // usually it's better to user Effect.forkScoped
-        // make sure this fiber can be interrupted with Effect.interruptibld
+        // make sure this fiber can be interrupted with Effect.interruptible
+        // so that it won't inherit the interrupt status of the parent fiber
       )
     )
 

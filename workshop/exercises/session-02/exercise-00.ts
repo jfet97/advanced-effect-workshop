@@ -16,8 +16,11 @@ const program = Effect.gen(function*(_) {
   const deferred = yield* _(Deferred.make<number, string>())
   yield* _(
     maybeFail,
-    // Implement the logic to propagate the full result of `maybeFail` back to
-    // the parent fiber utilizing the Deferred without `Effect.intoDeferred`.
+    // or Effect.matchEffect but defects are not handled (use matchCauseEffect)
+    // but we have to handle interruptions (see the official solution) otherwise the deferred
+    // may never be completed, we have to propagate the interruption signal to the parent
+    Effect.flatMap((n) => Deferred.succeed(deferred, n)),
+    Effect.catchAll((e) => Deferred.fail(deferred, e)),
     Effect.fork
   )
   const result = yield* _(Deferred.await(deferred))

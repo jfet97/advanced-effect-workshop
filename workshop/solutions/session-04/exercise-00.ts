@@ -13,9 +13,8 @@ const makeBatchedLogger = (config: {
       Effect.zipRight(resetBuffer)
     )
 
-    const schedule = Schedule.fixed(config.window).pipe(
-      Schedule.compose(Schedule.repeatForever)
-    )
+    const schedule = Schedule.fixed(config.window)
+
     yield* _(
       outputBuffer,
       Effect.schedule(schedule),

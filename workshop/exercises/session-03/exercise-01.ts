@@ -22,6 +22,9 @@ import { gql, GraphQLClient } from "graphql-request"
 //   - A `capacity` of `250`
 //   - A `timeToLive` of `10 days`
 
+// Achtung: use the Data module to be sure [equals] is implemented correctly
+// the cache for request is different than the Cache module
+
 // =============================================================================
 // PokemonRepo
 // =============================================================================

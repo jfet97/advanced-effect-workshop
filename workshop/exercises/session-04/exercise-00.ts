@@ -1,4 +1,15 @@
-import { Console, Effect, FiberRef, HashSet, Layer, Logger, Schedule } from "effect"
+import {
+  Chunk,
+  Console,
+  Effect,
+  FiberRef,
+  HashSet,
+  Layer,
+  Logger,
+  Queue,
+  Runtime,
+  Schedule
+} from "effect"
 import type { DurationInput } from "effect/Duration"
 
 // Exercise Summary:
@@ -15,21 +26,39 @@ import type { DurationInput } from "effect/Duration"
 const makeBatchedLogger = (config: {
   readonly window: DurationInput
 }) =>
-  Effect.gen(function*(_) {
-    const logger: Logger.Logger<unknown, void> = {} as any // Remove me
+  Effect.gen(function*($) {
+    // in this case an array would have been enough
+    const buffer = yield* $(Queue.unbounded<Logger.Logger.Options<unknown>>())
 
-    // Implementation
+    // so we do not lose the context
+    const runtime = yield* $(Effect.runtime())
 
-    yield* _(Effect.locallyScopedWith(FiberRef.currentLoggers, HashSet.add(logger)))
+    const logger: Logger.Logger<unknown, void> = Logger.make((log) => {
+      Runtime.runPromise(runtime)(buffer.offer(log))
+    })
+
+    yield* $(
+      Effect.gen(function*($) {
+        const logs = yield* $(buffer.takeAll)
+        Chunk.toReadonlyArray(logs).forEach(console.log)
+      }).pipe(
+        Effect.schedule(Schedule.fixed(config.window)),
+        Effect.fork // usually it's better to user Effect.forkScoped
+        // make sure this fiber can be interrupted with Effect.interruptibld
+      )
+    )
+
+    // when the scope is closed, the logger will be deleted
+    yield* $(Effect.locallyScopedWith(FiberRef.currentLoggers, HashSet.add(logger)))
   })
 
 const schedule = Schedule.fixed("500 millis").pipe(Schedule.compose(Schedule.recurs(10)))
 
-const program = Effect.gen(function*(_) {
-  yield* _(Console.log("Running logs!"))
-  yield* _(Effect.logInfo("Info log"))
-  yield* _(Effect.logWarning("Warning log"))
-  yield* _(Effect.logError("Error log"))
+const program = Effect.gen(function*($) {
+  yield* $(Console.log("Running logs!"))
+  yield* $(Effect.logInfo("Info log"))
+  yield* $(Effect.logWarning("Warning log"))
+  yield* $(Effect.logError("Error log"))
 }).pipe(Effect.schedule(schedule))
 
 const BatchedLoggerLive = Layer.scopedDiscard(makeBatchedLogger({ window: "2 seconds" }))

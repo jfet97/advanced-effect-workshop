@@ -20,7 +20,7 @@ import type * as NodeHttp from "node:http"
 import type * as NodeNet from "node:net"
 
 // =============================================================================
-// Express Integration
+// Express Integration (the proper way)
 // =============================================================================
 
 class Express extends Context.Tag("Express")<

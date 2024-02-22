@@ -38,7 +38,7 @@ export const flexibleApproach = (options: OpenAIOptions) =>
     const client = yield* _(getClient(options))
 
     const call = <A>(
-      f: (client: OpenAIApi, signal: AbortSignal) => Promise<A>
+      f: (client: OpenAIApi, signal: AbortSignal) => Promise<A> // <--
     ): Effect.Effect<A, OpenAIError> =>
       Effect.tryPromise({
         try: (signal) => f(client, signal),
@@ -73,6 +73,7 @@ export const comboApproach = (options: OpenAIOptions) =>
       readonly messages: ReadonlyArray<OpenAIApi.ChatCompletionMessageParam>
     }) =>
       call((_, signal) =>
+        // <-- we are returning a Stream, a custom Effect type
         _.chat.completions.create(
           {
             model: options.model,

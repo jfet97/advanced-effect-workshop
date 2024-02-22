@@ -41,9 +41,10 @@ const ServerLive = Layer.scopedDiscard(
 // Routes
 // =============================================================================
 
+// Layer.scopedDiscard just to ease stuff up
 const GetTodoRouteLive = Layer.scopedDiscard(Effect.gen(function*(_) {
   const app = yield* _(Express)
-  const runFork = yield* _(FiberSet.makeRuntime<TodoRepository>())
+  const runFork = yield* _(FiberSet.makeRuntime<TodoRepository>()) // would be ok to use `Effect.runtime` here, FiberSet handles scope, interruptions etc (?)
   app.get("/todos/:id", (req, res) => {
     const id = req.params.id
     const program = TodoRepository.pipe(

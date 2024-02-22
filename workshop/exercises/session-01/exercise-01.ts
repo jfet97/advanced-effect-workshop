@@ -9,10 +9,20 @@ import { EventEmitter } from "node:events"
 // and captures both the errors and values emitted by the `EventEmitter`'s
 // `"emission"` event.
 
-declare const captureEvents: (
+const captureEvents = (
   emitter: EventEmitter,
   eventName: string
-) => Stream.Stream<Event, EmissionError>
+): Stream.Stream<Event, EmissionError> =>
+  Stream.async<Event, EmissionError>((emit) => {
+    emitter.on(eventName, (e: EmissionError | null, value: Event) => {
+      if (e) {
+        emit.fail(e)
+      } else {
+        emit.single(value)
+      }
+    })
+  })
+
 // Complete the implementation of the `captureEvents` method. Your implementation should:
 //   - Handle pushing successful `Event` emissions to the stream
 //   - Failing the stream if an `EmissionError` is emitted

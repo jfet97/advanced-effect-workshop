@@ -1,4 +1,5 @@
 import { Effect } from "effect"
+// import { setTime } from "effect/TestClock"
 
 // Exercise Summary:
 //
@@ -9,7 +10,13 @@ import { Effect } from "effect"
 
 export const MAX_SET_TIMEOUT_MILLIS = 2 ** 31 - 1
 
-declare const sleep: (millis: number) => Effect.Effect<void>
+const sleep = (millis: number) =>
+  Effect.async<void, never>((resume) => {
+    const tid = setTimeout(() => resume(Effect.unit), Math.min(millis, MAX_SET_TIMEOUT_MILLIS))
+    return Effect.sync(() => (console.log("INTERRUPTED"), clearTimeout(tid))) // <-- "cleanup" if interrupted: clear the timeout
+    // no cleanup if error that must be manually handled, just for interruption
+  })
+
 // Implement the logic to suspend the fiber for the specified number of
 // milliseconds before allowing execution to resume. Your implementation should:
 //   - utilize `setTimeout` to implement the delay
@@ -18,11 +25,12 @@ declare const sleep: (millis: number) => Effect.Effect<void>
 //   - for bonus points, your implementation should also properly handle if the
 //     fiber that is sleeping is interrupted
 
-const program = Effect.gen(function*(_) {
+const program = Effect.gen(function*($) {
   const millis = 1_000
-  yield* _(Effect.log(`Sleeping for ${millis} milliseconds...`))
-  yield* _(sleep(millis))
-  yield* _(Effect.log("Resuming execution!"))
+  yield* $(Effect.log(`Sleeping for ${millis} milliseconds...`))
+  yield* $(sleep(millis), Effect.timeout(millis - 100), Effect.fork) // fork the sleep, set a timeout after which the sleep is interrupted
+  yield* $(Effect.yieldNow()) // <-- to be sure the forked fiber runs
+  yield* $(Effect.log("Resuming execution!"))
 })
 
 program.pipe(

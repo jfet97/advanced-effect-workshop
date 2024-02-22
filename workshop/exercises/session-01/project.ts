@@ -1,6 +1,6 @@
 import * as Schema from "@effect/schema/Schema"
 import bodyParser from "body-parser"
-import { Cause, Context, Effect, HashMap, Layer, Option, ReadonlyArray, Ref } from "effect"
+import { Cause, Context, Effect, HashMap, Layer, Option, ReadonlyArray, Ref, Runtime } from "effect"
 import express from "express"
 
 // In this session project, we will build a simple Express REST API server that
@@ -72,14 +72,34 @@ import express from "express"
 // =============================================================================
 
 const ServerLive = Layer.scopedDiscard(
-  Effect.gen(function*(_) {
+  Effect.gen(function*($) {
     // =============================================================================
     // Stage 1
     // =============================================================================
     // Start an Express server on your local host machine
     //  - Hint: you may want to consider utilizing `Runtime` given this is an execution boundary
     //  - Hint: starting / stopping the Express server is a resourceful operation
-    return yield* _(Effect.unit) // Delete me
+
+    const express = yield* $(Express)
+
+    const runtime = yield* $(Effect.runtime<never>())
+    const runFork = Runtime.runFork(runtime)
+
+    Runtime.runFork(runtime)
+
+    const expressServer = Effect.acquireRelease(
+      Effect.sync(() =>
+        // we do not care if the server starts, we are lazy
+        // with Effect.async we wouldn't need to use Runtime at all
+        // if we use a custom logger, we have to manually use a runtime (?)
+        express.listen(1234, () => {
+          runFork(Effect.log("Server started on port 1234"))
+        })
+      ),
+      (server) => Effect.sync(() => server.close()) // <-- use Effect.async
+    )
+
+    return yield* $(expressServer)
   })
 )
 
@@ -87,13 +107,33 @@ const ServerLive = Layer.scopedDiscard(
 // Routes
 // =============================================================================
 
-const GetTodoRouteLive = Layer.scopedDiscard(Effect.gen(function*(_) {
+const GetTodoRouteLive = Layer.scopedDiscard(Effect.gen(function*($) {
   // =============================================================================
   // Stage 2
   // =============================================================================
   // Create the `GET /todos/:id` route
   //   - If the todo exists, return the todo as JSON
   //   - If the todo does not exist return a 404 status code with the message `"Todo ${id} not found"`
+
+  const express = yield* $(Express)
+  const todoRepository = yield* $(TodoRepository)
+
+  const runtime = yield* $(Effect.runtime<never>()) // should be made "global" to persist layers and context across routes, that's ane xecution boundary
+  const runFork = Runtime.runFork(runtime)
+
+  express.get("/todos/:id", (req, res) => {
+    // ...
+
+    runFork(Effect.gen(function*($) {
+      const todo = yield* $(todoRepository.getTodo(+req.params.id))
+
+      if (todo._tag === "Some") {
+        res.json(todo.value)
+      } else {
+        res.status(404).send(`Todo ${req.params.id} not found`)
+      }
+    }))
+  })
 }))
 
 // =============================================================================
